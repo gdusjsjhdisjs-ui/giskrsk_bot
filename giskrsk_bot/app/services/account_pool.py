@@ -15,14 +15,14 @@
 from __future__ import annotations
 
 import json
-import threading
+import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 _BASE_DIR = Path(__file__).resolve().parents[2]
 _POOL_FILE = _BASE_DIR / "account_pool.json"
-_LOCK = threading.Lock()
+_LOCK = asyncio.Lock()
 
 STATUS_FREE = "free"
 STATUS_ASSIGNED = "assigned"

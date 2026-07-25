@@ -31,9 +31,11 @@ _VERIFY_TTL = 30
 
 
 def _seconds_to_midnight() -> int:
+    """Секунд до 00:00:00 следующего дня."""
+    from datetime import timedelta
     now = datetime.now()
-    midnight = datetime(now.year, now.month, now.day, 23, 59, 59)
-    return max(int((midnight - now).total_seconds()), 3600)
+    tomorrow = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+    return max(int((tomorrow - now).total_seconds()), 3600)
 
 
 class _MemoryStore:

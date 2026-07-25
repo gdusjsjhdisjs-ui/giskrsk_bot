@@ -10,8 +10,8 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
-import threading
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -19,7 +19,7 @@ from typing import Any
 
 _BASE_DIR = Path(__file__).resolve().parents[2]
 _ORDERS_FILE = _BASE_DIR / "shop_orders.json"
-_LOCK = threading.Lock()
+_LOCK = asyncio.Lock()
 
 # Статусы заказа
 STATUS_AWAITING = "awaiting_payment"   # создан, ждём оплату

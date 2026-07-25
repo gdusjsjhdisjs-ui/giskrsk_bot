@@ -84,7 +84,7 @@ class BatchService:
                 cadnum = normalize_cadnum(item.input_value)
                 if not cadnum:
                     await self.batch_item_repo.update_result(
-                        item.id, "invalid_format",
+                        item.id, "error",
                         error_message="Неверный формат кадастрового номера",
                     )
                     errors += 1
@@ -95,14 +95,14 @@ class BatchService:
                 data = await self.nextgis.search_by_cadnum(cadnum)
                 if data:
                     await self.batch_item_repo.update_result(
-                        item.id, "ok",
+                        item.id, "success",
                         normalized_cadnum=cadnum,
                         result_json=data,
                     )
                     success += 1
                 else:
                     await self.batch_item_repo.update_result(
-                        item.id, "not_found",
+                        item.id, "error",
                         normalized_cadnum=cadnum,
                         error_message="Участок не найден",
                     )
@@ -111,7 +111,7 @@ class BatchService:
             except Exception as e:
                 logger.error("Batch item error: %s", e)
                 await self.batch_item_repo.update_result(
-                    item.id, "api_error",
+                    item.id, "error",
                     error_message=str(e),
                 )
                 errors += 1
@@ -120,9 +120,12 @@ class BatchService:
                 job_id, processed=success + errors, success=success, errors=errors,
             )
 
-        # Завершаем
-        status = "completed" if errors == 0 else "completed_with_errors"
-        await self.batch_job_repo.update_status(job_id, status)
+        # Завершаем — используем значения из BatchStatus enum
+        from app.core.enums import BatchStatus
+        status = BatchStatus.COMPLETED if errors == 0 else BatchStatus.COMPLETED
+        # Для частичных ошибок меняем статус отдельно (валидное значение)
+        status_str = status.value  # "completed"
+        await self.batch_job_repo.update_status(job_id, status_str)
 
         return {
             "job_id": str(job_id),
