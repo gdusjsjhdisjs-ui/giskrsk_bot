@@ -1,0 +1,2390 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>ГИС Красноярье</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style>
+:root
+{
+  --card: #fff;
+  --page: #eef1f7;
+  --fg: #0f172a;
+  --muted: #6b7280;
+  --acc: #5b7cfa;
+  --acc2: #22d3ee;
+  --grad: linear-gradient(135deg, #5b7cfa 0%, #22d3ee 100%);
+  --ok: #22c55e;
+  --stroke: rgba(15, 23, 42, 0.08);
+  --shadow: 0 8px 28px rgba(15, 23, 42, 0.14);
+  --radius: 20px;
+  --tabh: 64px;
+  --bg-card: #1c1c1e;
+  --chip-bg: #2c2c2e;
+  --plus-bg: #2c2c2e;
+  --price-fg: #fff;
+  --new-badge: #30d158;
+}
+html.dark
+{
+  --card: rgba(30, 30, 32, 0.92);
+  --page: #000000;
+  --fg: #f5f5f7;
+  --muted: #8e8e93;
+  --stroke: rgba(255, 255, 255, 0.08);
+  --shadow: 0 10px 34px rgba(0, 0, 0, 0.7);
+  --bg-card: #1c1c1e;
+  --chip-bg: #2c2c2e;
+  --plus-bg: #2c2c2e;
+}
+*
+{
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+html, body
+{
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  overscroll-behavior: none;
+  background: var(--page);
+  color: var(--fg);
+}
+.view
+{
+  position: fixed;
+  inset: 0;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--tabh));
+}
+.hidden
+{
+  display: none !important;
+}
+.page
+{
+  overflow-y: auto;
+  padding: calc(env(safe-area-inset-top, 0px) + 16px) 16px 24px;
+}
+.view.page:not(.hidden)
+{
+  animation: fadeUp 0.25s ease;
+}
+@keyframes fadeUp
+{
+  from
+  {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to
+  {
+    opacity: 1;
+    transform: none;
+  }
+}
+#map
+{
+  position: absolute;
+  inset: 0;
+}
+#loader
+{
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: var(--page);
+  color: var(--fg);
+  font-size: 15px;
+  transition: opacity .35s;
+}
+#loader.hide
+{
+  opacity: 0;
+  pointer-events: none;
+}
+.spin
+{
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 4px solid rgba(91, 124, 250, 0.22);
+  border-top-color: var(--acc);
+  animation: rot 0.9s linear infinite;
+}
+@keyframes rot
+{
+  to
+  {
+    transform: rotate(360deg);
+  }
+}
+/* ---------- табы (фиолетовый стиль) ---------- */
+#tabbar
+{
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(env(safe-area-inset-bottom, 0px) + var(--tabh));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  z-index: 70;
+  display: flex;
+  background: rgba(20, 10, 40, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(130, 80, 220, 0.25);
+}
+html.dark #tabbar
+{
+  background: rgba(10, 5, 25, 0.95);
+}
+.tab
+{
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: rgba(180, 160, 220, 0.6);
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+.tab .ic
+{
+  font-size: 22px;
+  line-height: 1;
+}
+.tab.on
+{
+  color: #c084fc;
+}
+.tab.on .ic
+{
+  transform: translateY(-1px) scale(1.12);
+}
+/* ---------- карта: поиск, кнопки ---------- */
+#topbar
+{
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 10px);
+  left: 12px;
+  right: 12px;
+  z-index: 40;
+}
+#search
+{
+  width: 100%;
+  height: 46px;
+  border: 1px solid var(--stroke);
+  outline: none;
+  border-radius: 23px;
+  padding: 0 46px 0 18px;
+  font-size: 15px;
+  color: var(--fg);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(12px);
+}
+#search::placeholder
+{
+  color: var(--muted);
+}
+#searchIcon
+{
+  position: absolute;
+  right: 16px;
+  top: 12px;
+  font-size: 18px;
+  color: var(--muted);
+  pointer-events: none;
+}
+#results
+{
+  margin-top: 8px;
+  border-radius: var(--radius);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  display: none;
+}
+#results .item
+{
+  padding: 12px 16px;
+  font-size: 14px;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.12);
+  cursor: pointer;
+}
+#results .item:last-child
+{
+  border-bottom: none;
+}
+#fabs
+{
+  position: absolute;
+  right: 12px;
+  bottom: 24px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.fab
+{
+  width: 46px;
+  height: 46px;
+  border: 1px solid var(--stroke);
+  backdrop-filter: blur(14px);
+  border-radius: 50%;
+  background: var(--card);
+  color: var(--fg);
+  font-size: 21px;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.fab:active
+{
+  transform: scale(0.92);
+}
+#layersBtn
+{
+  position: absolute;
+  left: 12px;
+  bottom: 24px;
+  z-index: 40;
+  height: 46px;
+  padding: 0 18px;
+  border: 1px solid var(--stroke);
+  backdrop-filter: blur(14px);
+  border-radius: 23px;
+  background: var(--card);
+  color: var(--fg);
+  font-size: 15px;
+  font-weight: 600;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+.sheet
+{
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 80;
+  background: var(--card);
+  color: var(--fg);
+  border-radius: 20px 20px 0 0;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(16px);
+  padding: 10px 18px calc(env(safe-area-inset-bottom, 0px) + 18px);
+  transform: translateY(105%);
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  max-height: 65vh;
+  overflow-y: auto;
+}
+.sheet.open
+{
+  transform: translateY(0);
+}
+.sheet .grip
+{
+  width: 38px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--muted);
+  opacity: 0.4;
+  margin: 2px auto 12px;
+  cursor: pointer;
+}
+.sheet h3
+{
+  margin: 0 0 12px;
+  font-size: 17px;
+}
+.chips
+{
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.chip
+{
+  padding: 8px 14px;
+  border-radius: 18px;
+  border: 1.5px solid rgba(128, 128, 128, 0.25);
+  background: transparent;
+  color: var(--fg);
+  font-size: 13px;
+  cursor: pointer;
+}
+.chip.on
+{
+  background: var(--grad);
+  border-color: transparent;
+  color: #fff;
+  font-weight: 600;
+}
+.lrow
+{
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.12);
+}
+.lrow:last-child
+{
+  border-bottom: none;
+}
+.lrow input[type=checkbox]
+{
+  width: 20px;
+  height: 20px;
+  accent-color: var(--acc);
+}
+.lrow .nm
+{
+  flex: 1;
+  font-size: 14px;
+}
+.lrow input[type=range]
+{
+  width: 90px;
+  accent-color: var(--acc);
+}
+#infoTitle
+{
+  font-size: 17px;
+  font-weight: 700;
+  margin: 0 28px 4px 0;
+}
+#infoCloseBtn
+{
+  position: absolute;
+  top: 6px;
+  right: 12px;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(128,128,128,0.15);
+  color: var(--fg);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+#infoZone
+{
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+.coords-row
+{
+  font-size: 12px;
+  color: var(--muted);
+  padding: 6px 0;
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+  border-bottom: 1px solid rgba(128,128,128,0.12);
+  margin-bottom: 4px;
+}
+.prow
+{
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 7px 0;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.12);
+  font-size: 14px;
+}
+.prow .k
+{
+  color: var(--muted);
+}
+.prow .v
+{
+  text-align: right;
+  max-width: 60%;
+  word-break: break-word;
+}
+/* ---------- общие кнопки и карточки ---------- */
+.btn
+{
+  display: block;
+  width: 100%;
+  border: none;
+  border-radius: 16px;
+  background: var(--grad);
+  box-shadow: 0 6px 20px rgba(91, 124, 250, 0.35);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 14px;
+  cursor: pointer;
+  text-align: center;
+}
+.btn:active
+{
+  opacity: 0.85;
+}
+.btn.ghost
+{
+  background: transparent;
+  color: var(--acc);
+  border: 1.5px solid var(--acc);
+}
+.card
+{
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  backdrop-filter: blur(14px);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+  margin-bottom: 14px;
+}
+.h1
+{
+  font-size: 24px;
+  font-weight: 800;
+  margin: 4px 2px 14px;
+}
+.sect
+{
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 20px 4px 10px;
+}
+/* ===== Mysterioms-style магазин ===== */
+/* Поиск */
+#shopSearch
+{
+  display: flex;
+  gap: 8px;
+  padding: 12px 12px 0;
+  align-items: center;
+}
+#shopSearchField
+{
+  flex: 1;
+  position: relative;
+  background: #2c2c2e;
+  border-radius: 14px;
+  height: 42px;
+}
+#shopSearchIcon
+{
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 15px;
+  opacity: 0.4;
+  pointer-events: none;
+}
+#shopSearchInput
+{
+  width: 100%;
+  height: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #f5f5f7;
+  font-size: 15px;
+  padding: 0 14px 0 38px;
+  border-radius: 14px;
+}
+#shopSearchInput::placeholder
+{
+  color: #8e8e93;
+}
+#shopHelpBtn
+{
+  width: 42px;
+  height: 42px;
+  border: none;
+  border-radius: 50%;
+  background: #2c2c2e;
+  color: #f5f5f7;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+/* Фильтры */
+#shopChips
+{
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px 6px;
+  overflow-x: auto;
+}
+.schip
+{
+  padding: 6px 16px;
+  border-radius: 16px;
+  border: none;
+  background: #2c2c2e;
+  color: #f5f5f7;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.schip.on
+{
+  background: #f5f5f7;
+  color: #000;
+}
+/* Сетка товаров */
+#shopGridWrap
+{
+  padding: 4px 10px 120px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  position: absolute;
+  inset: 88px 0 0;
+}
+#shopGridWrap::-webkit-scrollbar
+{
+  width: 3px;
+}
+#shopGridWrap::-webkit-scrollbar-thumb
+{
+  background: #3a3a3c;
+  border-radius: 2px;
+}
+#shopGrid
+{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+/* Карточка товара */
+.sitem
+{
+  position: relative;
+  background: transparent;
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: pointer;
+}
+.sitem-img
+{
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  display: block;
+  border-radius: 10px;
+  background: #1c1c1e;
+}
+.sitem-img-placeholder
+{
+  width: 100%;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48px;
+  border-radius: 10px;
+  background: #1c1c1e;
+}
+.sitem-new
+{
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: #30d158;
+  color: #000;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 3px 7px;
+  border-radius: 5px;
+  letter-spacing: 0.05em;
+}
+.sitem-hit
+{
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: #ff9f0a;
+  color: #000;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 3px 7px;
+  border-radius: 5px;
+}
+.sitem-name
+{
+  font-size: 13px;
+  font-weight: 700;
+  color: #f5f5f7;
+  padding: 6px 4px 1px;
+  text-transform: uppercase;
+  line-height: 1.25;
+}
+.sitem-sub
+{
+  font-size: 11px;
+  color: #8e8e93;
+  padding: 0 4px;
+}
+.sitem-row
+{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 4px 8px;
+}
+.sitem-price
+{
+  font-size: 17px;
+  font-weight: 800;
+  color: #f5f5f7;
+}
+.sitem-plus
+{
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 7px;
+  background: #2c2c2e;
+  color: #f5f5f7;
+  font-size: 18px;
+  font-weight: 300;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.sitem-img-wrap
+{
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+}
+/* Профиль */
+
+/* Профиль */
+  z-index: 101;
+}
+/* профиль */
+.avatar
+{
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--grad);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  font-weight: 800;
+}
+.mrow
+{
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 4px;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.12);
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+}
+.mrow:last-child
+{
+  border-bottom: none;
+}
+.mrow .ic
+{
+  font-size: 20px;
+}
+.mrow .sub
+{
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+  margin-top: 2px;
+}
+#toast
+{
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 70px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 95;
+  background: rgba(15, 23, 42, 0.85);
+  color: #fff;
+  font-size: 13px;
+  padding: 9px 16px;
+  border-radius: 12px;
+  display: none;
+  max-width: 86vw;
+}
+#measureChip
+{
+  position: absolute;
+  left: 12px;
+  bottom: 82px;
+  z-index: 40;
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  color: var(--fg);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 9px 14px;
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(14px);
+  max-width: 70vw;
+}
+#coords
+{
+  position: absolute;
+  bottom: 84px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  color: var(--fg);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 12px;
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+  pointer-events: none;
+  white-space: nowrap;
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+  transition: opacity 0.25s;
+}
+#coords.show
+{
+  opacity: 1;
+}
+.fab.on
+{
+  background: var(--grad);
+  color: #fff;
+  border-color: transparent;
+}
+.maplibregl-ctrl-attrib
+{
+  font-size: 10px;
+}
+</style>
+</head>
+<body>
+<div id="loader">
+  <div class="spin"></div>
+  <div>Загружаем…</div>
+</div>
+
+<!-- ================= КАРТА ================= -->
+<div class="view" id="view-map">
+  <div id="map"></div>
+  <div id="topbar">
+    <input id="search" type="search" placeholder="Посёлок, деревня, адрес…" autocomplete="off" />
+    <span id="searchIcon">🔍</span>
+    <div id="results"></div>
+  </div>
+  <div id="fabs">
+    <button class="fab" id="zin">＋</button>
+    <button class="fab" id="zout">－</button>
+    <button class="fab" id="home" title="Вся карта">⌂</button>
+    <button class="fab" id="ruler" title="Линейка">📏</button>
+    <button class="fab" id="areaBtn" title="Площадь">▣</button>
+    <button class="fab" id="geo">📍</button>
+  </div>
+  <div id="measureChip" class="hidden"></div>
+  <div id="coords" class="hidden"></div>
+  <button id="layersBtn">🗂 Слои</button>
+</div>
+
+<!-- ================= МАГАЗИН (Mysterioms style) ================= -->
+<div class="view page hidden" id="view-shop" style="background:#000;padding:0">
+  <!-- Поиск -->
+  <div id="shopSearch">
+    <div id="shopSearchField">
+      <span id="shopSearchIcon">🔍</span>
+      <input id="shopSearchInput" type="search" placeholder="Поиск" autocomplete="off" />
+    </div>
+    <button id="shopHelpBtn">?</button>
+  </div>
+  <!-- Фильтры-чипсы -->
+  <div id="shopChips">
+    <button class="schip on" data-filter="all">Все</button>
+    <button class="schip" data-filter="new">New</button>
+    <button class="schip" data-filter="hit">Хит</button>
+  </div>
+  <!-- Сетка товаров -->
+  <div id="shopGridWrap">
+    <div id="shopGrid"></div>
+  </div>
+</div>
+
+<!-- ================= СТРАНИЦА ТОВАРА (ОТДЕЛЬНО от view-shop) ================= -->
+<div id="productPage" class="hidden" style="position:fixed;inset:0;z-index:100;background:#000;overflow-y:auto;padding-bottom:90px">
+  <div id="productHero" style="width:100%;aspect-ratio:16/9;display:block;background:#1c1c1e"></div>
+  <div style="padding:16px">
+    <button id="productBack" style="background:none;border:none;color:#5b7cfa;font-size:16px;font-weight:600;padding:0 0 12px;cursor:pointer">← Назад</button>
+    <div id="productTitle" style="font-size:22px;font-weight:800;color:#f5f5f7;text-transform:uppercase;line-height:1.2;margin-bottom:4px"></div>
+    <div id="productCapsule" style="font-size:14px;color:#8e8e93;margin-bottom:6px"></div>
+    <div id="productPrice" style="font-size:24px;font-weight:800;color:#f5f5f7;margin-bottom:16px"></div>
+    <div id="productDesc" style="background:#1c1c1e;border-radius:14px;padding:16px;color:#aeaeb2;font-size:14px;line-height:1.5;margin-bottom:14px"></div>
+    <div id="productChecks" style="background:#1c1c1e;border-radius:14px;padding:16px;color:#aeaeb2;font-size:14px;line-height:1.6"></div>
+  </div>
+  <button id="productBuyBtn" style="position:fixed;bottom:0;left:0;right:0;border:none;background:#e5e5ea;color:#000;font-size:16px;font-weight:700;padding:16px;cursor:pointer;text-align:center;z-index:101">🛒 Добавить в корзину</button>
+</div>
+
+<!-- ================= ПРОФИЛЬ ================= -->
+<div class="view page hidden" id="view-profile">
+  <div class="h1">👤 Профиль</div>
+  <div class="card">
+    <div style="display:flex; align-items:center; gap:14px">
+      <div class="avatar" id="avatar">👤</div>
+      <div>
+        <div style="font-size:17px; font-weight:700" id="pfName">Гость</div>
+        <div style="font-size:13px; color:var(--muted)" id="pfUser"></div>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="mrow" onclick="openBot('profile')">
+      <span class="ic">📊</span>
+      <span>Мой доступ и подписка<span class="sub">статус, срок, логин — в боте</span></span>
+    </div>
+    <div class="mrow" onclick="openBot('ref')">
+      <span class="ic">🤝</span>
+      <span>Пригласить друга<span class="sub">+7 дней подписки за каждого друга</span></span>
+    </div>
+    <div class="mrow" onclick="openBot('tariffs')">
+      <span class="ic">🎁</span>
+      <span>Пробный день<span class="sub">полный доступ на 24 часа бесплатно</span></span>
+    </div>
+    <div class="mrow" onclick="openBot('support')">
+      <span class="ic">💬</span>
+      <span>Поддержка<span class="sub">напишите нам в боте</span></span>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ptitle">ℹ️ Как это ����ботает</div>
+    <div class="pdesc">Оплата — переводом по номеру карты. Копейки в сумме — ваш код платежа, по ним мы находим перевод. Проверка обычно занимает до 30 минут, после чего бот автоматически выдаёт доступ или файл.</div>
+  </div>
+</div>
+
+<!-- шторки карты -->
+<div class="sheet" id="layersSheet">
+  <div class="grip"></div>
+  <h3>Подложка</h3>
+  <div class="chips" id="baseChips"></div>
+  <h3>Слои данных</h3>
+  <div id="layerRows"></div>
+</div>
+<div class="sheet" id="infoSheet">
+  <div class="grip" id="infoGrip"></div>
+  <button id="infoCloseBtn">✕</button>
+  <div id="infoTitle"></div>
+  <span id="infoZone"></span>
+  <div id="infoCoords" class="coords-row"></div>
+  <div id="infoProps"></div>
+  <button class="btn" style="margin-top:14px" onclick="openBot('shop')">🛒 Купить данные этого района</button>
+</div>
+
+<!-- табы -->
+<nav id="tabbar">
+  <button class="tab on" data-tab="map"><span class="ic">🗺</span>Карта</button>
+  <button class="tab" data-tab="shop"><span class="ic">🛒</span>Магазин</button>
+  <button class="tab" data-tab="profile"><span class="ic">👤</span>Профиль</button>
+</nav>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+
+/* ===================== НАСТРОЙКИ (редактируйте здесь) ===================== */
+var CONFIG =
+{
+  center: [92.87, 56.03],
+  zoom: 8.6,
+  botUrl: 'https://t.me/giskrsk_bot',
+  ngwUrl: 'https://zimin-maplive0000.nextgis.com',
+  ngwToken: '',  // Bearer token для доступа к закрытым слоям NextGIS
+  layers:
+  [
+    // ─── ПЗЗ (GeoJSON, локальные файлы) ───
+    { id: 'pzz_krsk', name: '🏙 ПЗЗ Красноярск', type: 'geojson', url: 'data/pzz_krasnoyarsk.geojson', zoneProp: 'urban_index', visible: true },
+    { id: 'pzz_divn', name: '🏔 ПЗЗ Дивногорск', type: 'geojson', url: 'data/pzz_divnogorsk.geojson', zoneProp: 'urban_index', visible: true },
+    { id: 'pzz_emel', name: '🌲 ПЗЗ Емельяновский р-н', type: 'geojson', url: 'data/agate_emelyanovskr_geo_urban_terzone_exist_6e922ca.geojson', zoneProp: 'urban_index', visible: false },
+    // ─── Кадастр (TMS из NextGIS GeoServices) ───
+    { id: 'cad_quarters', name: '🗺 Кадастровые кварталы', type: 'tms', url: 'https://geoservices.nextgis.com/raster/pkk/ngrr1/{z}/{x}/{y}.png?apikey=073b03cc7ee19378c5b78d9c0ad70890', visible: false },
+    { id: 'cad_parcels', name: '📋 Кадастровые участки', type: 'tms', url: 'https://geoservices.nextgis.com/raster/pkk/ngrr2/{z}/{x}/{y}.png?apikey=073b03cc7ee19378c5b78d9c0ad70890', visible: false },
+    { id: 'cad_zouit', name: '🚫 ЗОУИТ', type: 'tms', url: 'https://geoservices.nextgis.com/raster/pkk/ngrr3/{z}/{x}/{y}.png?apikey=073b03cc7ee19378c5b78d9c0ad70890', visible: false },
+    // ─── Прочие ───
+    { id: 'genplan_krsk', name: '📐 Генплан Красноярск', type: 'geojson', url: 'data/genplan_krasnoyarsk.geojson', zoneProp: 'full_name', visible: false },
+    { id: 'red_lines', name: '🔴 Красные линии', type: 'geojson', url: 'data/red_lines_krasnoyarsk.geojson', zoneProp: 'name', visible: false },
+  ],
+  tariffs:
+  [
+    { id: 'basic_30d', name: 'Базовый', period: '30 дней', price: 2990 },
+    { id: 'pro_30d', name: 'PRO', period: '30 дней', price: 4990, hit: true },
+    { id: 'pro_90d', name: 'PRO', period: '90 дней', price: 9900 },
+    { id: 'year', name: 'Годовой', period: '365 дней', price: 24900 }
+  ],
+  products: []
+};
+/* Картинки товаров: положите файл в папку img/ и укажите img: 'img/файл.jpg' */
+/* ========================================================================== */
+
+var tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+var isDark = false;
+if (tg)
+{
+  tg.ready();
+  tg.expand();
+  try
+  {
+    tg.disableVerticalSwipes();
+  }
+  catch (e)
+  {
+  }
+  isDark = tg.colorScheme === 'dark';
+}
+if (isDark)
+{
+  document.documentElement.classList.add('dark');
+}
+
+function openBot(payload)
+{
+  var url = CONFIG.botUrl + (payload ? '?start=' + payload : '');
+  haptic();
+  if (tg)
+  {
+    tg.openTelegramLink(url);
+  }
+  else
+  {
+    window.open(url, '_blank');
+  }
+}
+
+/* ---------- табы ---------- */
+var tabs = document.querySelectorAll('.tab');
+function showTab(name)
+{
+  ['map', 'shop', 'profile'].forEach(function (t)
+  {
+    document.getElementById('view-' + t).classList.toggle('hidden', t !== name);
+  } );
+  for (var i = 0; i < tabs.length; i++)
+  {
+    tabs[i].classList.toggle('on', tabs[i].dataset.tab === name);
+  }
+  document.getElementById('layersSheet').classList.remove('open');
+  document.getElementById('infoSheet').classList.remove('open');
+  document.getElementById('productPage').classList.add('hidden');
+  document.getElementById('tabbar').classList.remove('hidden');
+  if (name === 'map' && window.mapObj)
+  {
+    window.mapObj.resize();
+  }
+  haptic();
+}
+for (var ti = 0; ti < tabs.length; ti++)
+{
+  (function (btn)
+  {
+    btn.addEventListener('click', function ()
+    {
+      showTab(btn.dataset.tab);
+    } );
+  } )(tabs[ti]);
+}
+function goShop()
+{
+  showTab('shop');
+}
+
+/* ===== Mysterioms-style магазин ===== */
+function fmtPrice(v)
+{
+  return v.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' ₽';
+}
+// Расширенные товары с категориями и стилем Mysterioms
+var SHOP_DATA =
+[
+  // Подписки
+  { kind: 'sub', id: 'basic_30d', name: 'Базовый', sub: '30 дней', price: 2990, filter: 'all' },
+  { kind: 'sub', id: 'pro_30d', name: 'PRO', sub: '30 дней', price: 4990, filter: 'hit' },
+  { kind: 'sub', id: 'pro_90d', name: 'PRO', sub: '90 дней', price: 9900, filter: 'all' },
+  { kind: 'sub', id: 'year', name: 'Годовой', sub: '365 дней', price: 24900, filter: 'hit' },
+  // Данные
+  { kind: 'data', id: 'pzz_emel', name: 'ПЗЗ ЕМЕЛЬЯНОВСКИЙ/ ЕМЕЛЬЯНОВО', sub: '54 000+ участков, GeoJSON', price: 3000, filter: 'all', emoji: '🗺' },
+  { kind: 'data', id: 'pzz_divn', name: 'ПЗЗ ДИВНОГОРСК/ ДИВНОГОРСК', sub: '14 000+ участков, GeoJSON', price: 3000, filter: 'new', emoji: '🏔' },
+  { kind: 'data', id: 'pzz_sosn', name: 'ПЗЗ СОСНОВОБОРСК/ СОСНОВОБОРСК', sub: 'GeoJSON (WGS 84)', price: 3000, filter: 'all', emoji: '🌲' },
+  { kind: 'data', id: 'pzz_krsk_gpkg', name: 'ПЗЗ КРАСНОЯРСК/ КРАСНОЯРСК', sub: 'GeoPackage для QGIS', price: 5000, filter: 'hit', emoji: '🏙' },
+  { kind: 'data', id: 'qgis_full', name: 'QGIS ПРОЕКТ/ ВСЁ ВКЛЮЧЕНО', sub: 'ПЗЗ + кадастр + спутник', price: 10000, filter: 'new', emoji: '💼' },
+];
+
+// Рендер сетки
+function renderShop(filter)
+{
+  filter = filter || 'all';
+  var grid = document.getElementById('shopGrid');
+  grid.innerHTML = '';
+  SHOP_DATA.forEach(function (item)
+  {
+    if (filter !== 'all' && item.filter !== filter) return;
+    var el = document.createElement('div');
+    el.className = 'sitem';
+    var imgHtml = item.emoji
+      ? '<div class="sitem-img-placeholder">' + item.emoji + '</div>'
+      : '<div class="sitem-img-placeholder" style="font-size:28px">📦</div>';
+    var badge = '';
+    if (item.filter === 'new') badge = '<div class="sitem-new">NEW</div>';
+    else if (item.filter === 'hit') badge = '<div class="sitem-hit">ХИТ</div>';
+    var handler = item.kind === 'sub' ? 'tariffs' : 'buy_' + item.id;
+    el.innerHTML =
+      '<div class="sitem-img-wrap">' + imgHtml + badge + '</div>' +
+      '<div class="sitem-name">' + item.name + '</div>' +
+      '<div class="sitem-sub">' + item.sub + '</div>' +
+      '<div class="sitem-row">' +
+        '<span class="sitem-price">' + fmtPrice(item.price) + '</span>' +
+        '<button class="sitem-plus">+</button>' +
+      '</div>';
+    el.querySelector('.sitem-plus').addEventListener('click', function (e)
+    {
+      e.stopPropagation();
+      openBot(handler);
+    } );
+    el.addEventListener('click', function ()
+    {
+      showProductPage(item);
+    } );
+    grid.appendChild(el);
+  } );
+}
+
+// Страница товара
+var currentProduct = null;
+function showProductPage(item)
+{
+  currentProduct = item;
+  document.getElementById('tabbar').classList.add('hidden');
+  document.getElementById('view-shop').classList.add('hidden');
+  document.getElementById('productPage').classList.remove('hidden');
+  document.getElementById('productTitle').textContent = item.name;
+  document.getElementById('productCapsule').textContent = item.sub;
+  document.getElementById('productPrice').textContent = fmtPrice(item.price);
+  document.getElementById('productHero').innerHTML = item.emoji
+    ? '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:80px;background:linear-gradient(135deg,#1c1c1e,#2c2c2e)">' + item.emoji + '</div>'
+    : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:60px;background:#1c1c1e">📦</div>';
+
+  var desc = '';
+  var checks = '';
+  if (item.kind === 'sub')
+  {
+    desc = item.name + ' — доступ к веб-карте ГИС Красноярье на ' + item.sub + '. Полный функционал: просмотр ПЗЗ, поиск по кадастровому номеру, определение зоны по координатам.';
+    checks = '• Полный доступ ко всем слоям\n• Поиск по кадастровому номеру\n• Определение зоны по геолокации\n• Поддержка по телефону и в чате';
+  }
+  else
+  {
+    var parts = item.name.split('/');
+    var en = parts[0].trim();
+    desc = en + ' — готовый векторный слой зон ПЗЗ. Подходит для профессионального анализа территории, проектирования и кадастровых работ.\n\nМоноамины → ГАМК → кровоток → когнитивка';
+    checks = '• ' + en + ' — подробные атрибуты зон\n• Система координат WGS 84 (EPSG:4326)\n• Готов к использованию в QGIS и NextGIS\n• Поддержка и консультация в чате';
+  }
+  document.getElementById('productDesc').innerHTML = '<strong>' + item.name.split('/')[0].trim() + '</strong><br><br>' + desc.replace(/\n/g, '<br>');
+  document.getElementById('productChecks').innerHTML = '<span style="color:#f5f5f7;font-weight:600">Что входит:</span><br>' + checks.replace(/\n/g, '<br>');
+  var handler = item.kind === 'sub' ? 'tariffs' : 'buy_' + item.id;
+  document.getElementById('productBuyBtn').onclick = function () { openBot(handler); };
+  haptic();
+}
+
+document.getElementById('productBack').addEventListener('click', function ()
+{
+  document.getElementById('productPage').classList.add('hidden');
+  document.getElementById('view-shop').classList.remove('hidden');
+  document.getElementById('tabbar').classList.remove('hidden');
+} );
+
+// Чипсы-фильтры
+document.querySelectorAll('.schip').forEach(function (btn)
+{
+  btn.addEventListener('click', function ()
+  {
+    document.querySelectorAll('.schip').forEach(function (b) { b.classList.remove('on'); });
+    btn.classList.add('on');
+    renderShop(btn.dataset.filter);
+    haptic();
+  } );
+} );
+
+// Инициализация
+renderShop('all');
+
+/* ---------- профиль ---------- */
+(function ()
+{
+  var u = tg && tg.initDataUnsafe ? tg.initDataUnsafe.user : null;
+  if (!u)
+  {
+    return;
+  }
+  var name = (u.first_name || '') + (u.last_name ? ' ' + u.last_name : '');
+  document.getElementById('pfName').textContent = name || 'Пользователь';
+  document.getElementById('pfUser').textContent = u.username ? '@' + u.username : 'ID: ' + u.id;
+  var av = document.getElementById('avatar');
+  if (u.photo_url)
+  {
+    av.innerHTML = '<img src="' + u.photo_url + '" style="width:100%;height:100%;border-radius:50%" alt="" />';
+  }
+  else if (name)
+  {
+    av.textContent = name.charAt(0).toUpperCase();
+  }
+} )();
+
+/* ---------- карта ---------- */
+var BASEMAPS =
+{
+  light:
+  {
+    name: 'Светлая',
+    tiles:
+    [
+      'https://a.basemaps.cartocdn.com/rastertiles/voyager/' + '{z}/{x}/{y}@2x.png',
+      'https://b.basemaps.cartocdn.com/rastertiles/voyager/' + '{z}/{x}/{y}@2x.png',
+      'https://c.basemaps.cartocdn.com/rastertiles/voyager/' + '{z}/{x}/{y}@2x.png'
+    ],
+    attr: '© OpenStreetMap, © CARTO'
+  },
+  dark:
+  {
+    name: 'Тёмная',
+    tiles:
+    [
+      'https://a.basemaps.cartocdn.com/dark_all/' + '{z}/{x}/{y}@2x.png',
+      'https://b.basemaps.cartocdn.com/dark_all/' + '{z}/{x}/{y}@2x.png'
+    ],
+    attr: '© OpenStreetMap, © CARTO'
+  },
+  osm:
+  {
+    name: 'OSM',
+    tiles:
+    [
+      'https://tile.openstreetmap.org/' + '{z}/{x}/{y}.png'
+    ],
+    attr: '© OpenStreetMap'
+  },
+  sat:
+  {
+    name: 'Спутник',
+    tiles:
+    [
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/' + '{z}/{y}/{x}'
+    ],
+    attr: '© Esri'
+  },
+  gis2:
+  {
+    name: '2ГИС',
+    tiles:
+    [
+      'https://tile2.maps.2gis.com/tiles?x={x}&y={y}&z={z}&v=1.1'
+    ],
+    attr: '© 2GIS'
+  }
+};
+var currentBase = isDark ? 'dark' : 'light';
+
+function baseStyle(key)
+{
+  var b = BASEMAPS[key];
+  var src =
+  {
+    type: 'raster',
+    tiles: b.tiles,
+    tileSize: 256,
+    attribution: b.attr
+  };
+  var style =
+  {
+    version: 8,
+    sources:
+    {
+      base: src
+    },
+    layers:
+    [
+      {
+        id: 'base',
+        type: 'raster',
+        source: 'base'
+      }
+    ]
+  };
+  return style;
+}
+
+function switchBaseMap(key)
+{
+  var b = BASEMAPS[key];
+  // Меняем тайлы существующего источника — слои ПЗЗ НЕ пересоздаются
+  if (map.getSource('base'))
+  {
+    map.getSource('base').setTiles(b.tiles);
+    if (map.getLayer('base'))
+    {
+      map.setPaintProperty('base', 'raster-opacity', 1);
+    }
+  }
+  else
+  {
+    // Первый запуск — через setStyle
+    map.setStyle(baseStyle(key));
+    map.once('style.load', addOverlays);
+  }
+  currentBase = key;
+  // Обновим attribution
+  var attr = document.querySelector('.maplibregl-ctrl-attrib');
+  if (attr) attr.innerHTML = b.attr;
+}
+
+function zoneColorExpr(prop)
+{
+  return [
+    'match',
+    ['slice', ['coalesce', ['to-string', ['get', prop] ], '' ], 0, 1],
+    'Ж', '#f59e0b',
+    'О', '#ef4444',
+    'Д', '#f43f5e',
+    'П', '#8b5cf6',
+    'С', '#22c55e',
+    'Р', '#14b8a6',
+    'Т', '#94a3b8',
+    'И', '#64748b',
+    'Л', '#65a30d',
+    'К', '#92400e',
+    'У', '#d97706',
+    '#3b82f6'
+  ];
+}
+function zoneColorJs(code)
+{
+  var c = (code || '').toString().charAt(0);
+  var m =
+  {
+    'Ж': '#f59e0b',
+    'О': '#ef4444',
+    'Д': '#f43f5e',
+    'П': '#8b5cf6',
+    'С': '#22c55e',
+    'Р': '#14b8a6',
+    'Т': '#94a3b8',
+    'И': '#64748b',
+    'Л': '#65a30d',
+    'К': '#92400e',
+    'У': '#d97706'
+  };
+  return m[c] || '#3b82f6';
+}
+
+var map = new maplibregl.Map(
+{
+  container: 'map',
+  style: baseStyle(currentBase),
+  center: CONFIG.center,
+  zoom: CONFIG.zoom,
+  maxZoom: 19,
+  attributionControl: false,
+  fadeDuration: 100
+} );
+window.mapObj = map;
+map.addControl(new maplibregl.AttributionControl( { compact: true } ), 'bottom-right');
+map.dragRotate.disable();
+map.touchZoomRotate.disableRotation();
+map.addControl(new maplibregl.ScaleControl( { maxWidth: 90, unit: 'metric' } ), 'bottom-left');
+var homeBtn = document.getElementById('home');
+if (homeBtn)
+{
+  homeBtn.onclick = function ()
+  {
+    map.flyTo( { center: CONFIG.center, zoom: CONFIG.zoom, duration: 900 } );
+  };
+}
+
+var layerState = { };
+CONFIG.layers.forEach(function (l)
+{
+  layerState[l.id] =
+  {
+    visible: l.visible !== false,
+    opacity: 0.55
+  };
+} );
+
+function addOverlays()
+{
+  CONFIG.layers.forEach(function (l)
+  {
+    var st = layerState[l.id];
+    var vis = st.visible ? 'visible' : 'none';
+    if (l.type === 'geojson')
+    {
+      // Не добавлять, если источник уже существует
+      if (map.getSource(l.id)) return;
+      map.addSource(l.id,
+      {
+        type: 'geojson',
+        data: l.url,
+        tolerance: 0.375,
+        buffer: 96,
+        maxzoom: 16,
+        generateId: true
+      } );
+      map.addLayer(
+      {
+        id: l.id + '-fill',
+        type: 'fill',
+        source: l.id,
+        layout: { visibility: vis },
+        paint:
+        {
+          'fill-color': zoneColorExpr(l.zoneProp || 'zone'),
+          'fill-opacity': st.opacity
+        }
+      } );
+      map.addLayer(
+      {
+        id: l.id + '-line',
+        type: 'line',
+        source: l.id,
+        minzoom: 9,
+        layout: { visibility: vis },
+        paint:
+        {
+          'line-color': '#ffffff',
+          'line-width': 1.8,
+          'line-opacity': 0.45
+        }
+      } );
+      map.addLayer(
+      {
+        id: l.id + '-label',
+        type: 'symbol',
+        source: l.id,
+        minzoom: 10,
+        layout:
+        {
+          visibility: vis,
+          'text-field': ['coalesce', ['get', l.zoneProp || 'zone'], ''],
+          'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+          'text-size': [
+            'interpolate', ['linear'], ['zoom'],
+            10, 8,
+            12, 11,
+            14, 15,
+            16, 20
+          ],
+          'text-max-width': 8,
+          'text-allow-overlap': false,
+          'text-ignore-placement': false,
+          'text-optional': true,
+          'symbol-placement': 'point',
+          'symbol-spacing': 500,
+          'text-padding': 6,
+          'text-line-height': 1.1,
+        },
+        paint:
+        {
+          'text-color': '#ffffff',
+          'text-halo-color': 'rgba(0,0,0,0.7)',
+          'text-halo-width': 1.5,
+          'text-halo-blur': 1,
+          'text-opacity': [
+            'interpolate', ['linear'], ['zoom'],
+            10, 0,
+            11, 1
+          ]
+        }
+      } );
+    }
+    else if (l.type === 'ngw-vector')
+    {
+      if (map.getSource(l.id)) return;
+      var mvt = CONFIG.ngwUrl + '/api/component/feature_layer/mvt?resource=' + l.resource + '&z={z}&x={x}&y={y}' + (CONFIG.ngwToken ? '&token=' + CONFIG.ngwToken : '');
+      map.addSource(l.id,
+      {
+        type: 'vector',
+        tiles: [mvt],
+        minzoom: 0,
+        maxzoom: 16
+      } );
+      var srcLayer = l.sourceLayer || String(l.resource);
+      var hasZone = l.zoneProp && l.zoneProp !== '';
+      var fillColor = hasZone ? zoneColorExpr(l.zoneProp) : '#a78bfa';
+      var fillOpacity = hasZone ? st.opacity : 0.25;
+      map.addLayer(
+      {
+        id: l.id + '-fill',
+        type: 'fill',
+        source: l.id,
+        'source-layer': srcLayer,
+        layout: { visibility: vis },
+        paint:
+        {
+          'fill-color': fillColor,
+          'fill-opacity': fillOpacity,
+          'fill-outline-color': hasZone ? 'transparent' : '#7c3aed'
+        }
+      } );
+      map.addLayer(
+      {
+        id: l.id + '-line',
+        type: 'line',
+        source: l.id,
+        'source-layer': srcLayer,
+        layout: { visibility: vis },
+        paint:
+        {
+          'line-color': hasZone ? zoneColorExpr(l.zoneProp) : '#7c3aed',
+          'line-width': hasZone ? 2.4 : 1.5,
+          'line-opacity': hasZone ? 1 : 0.6
+        }
+      } );
+      // Подписи только для ПЗЗ
+      if (hasZone) {
+        map.addLayer(
+        {
+          id: l.id + '-label',
+          type: 'symbol',
+          source: l.id,
+          'source-layer': srcLayer,
+          minzoom: 10,
+          layout:
+          {
+            visibility: vis,
+            'text-field': ['coalesce', ['get', l.zoneProp], ''],
+            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+            'text-size': [
+              'interpolate', ['linear'], ['zoom'],
+              10, 8,
+              12, 11,
+              14, 15,
+              16, 20
+            ],
+            'text-max-width': 8,
+            'text-allow-overlap': false,
+            'text-ignore-placement': false,
+            'text-optional': true,
+            'symbol-placement': 'point',
+            'symbol-spacing': 500,
+            'text-padding': 6,
+            'text-line-height': 1.1,
+          },
+          paint:
+          {
+            'text-color': '#ffffff',
+            'text-halo-color': 'rgba(0,0,0,0.7)',
+            'text-halo-width': 1.5,
+            'text-halo-blur': 1,
+            'text-opacity': [
+              'interpolate', ['linear'], ['zoom'],
+              10, 0,
+              11, 1
+            ]
+          }
+        } );
+      }
+    }
+    else if (l.type === 'ngw-raster')
+    {
+      if (map.getSource(l.id)) return;
+      var tile = CONFIG.ngwUrl + '/api/component/render/tile?resource=' + l.resource + '&nd=204&z=' + '{z}&x={x}&y={y}';
+      map.addSource(l.id,
+      {
+        type: 'raster',
+        tiles: [tile],
+        tileSize: 256
+      } );
+      map.addLayer(
+      {
+        id: l.id + '-fill',
+        type: 'raster',
+        source: l.id,
+        layout: { visibility: vis },
+        paint: { 'raster-opacity': Math.min(1, st.opacity + 0.4) }
+      } );
+    }
+    else if (l.type === 'tms')
+    {
+      if (map.getSource(l.id)) return;
+      map.addSource(l.id,
+      {
+        type: 'raster',
+        tiles: [l.url],
+        tileSize: 256,
+        minzoom: parseInt(l.minzoom || 3),
+        maxzoom: parseInt(l.maxzoom || 20),
+      } );
+      map.addLayer(
+      {
+        id: l.id + '-fill',
+        type: 'raster',
+        source: l.id,
+        layout: { visibility: vis },
+        paint: { 'raster-opacity': st.opacity }
+      } );
+    }
+  } );
+}
+
+map.on('style.load', addOverlays);
+map.on('load', function ()
+{
+  document.getElementById('loader').classList.add('hide');
+} );
+setTimeout(function ()
+{
+  document.getElementById('loader').classList.add('hide');
+}, 20000);
+
+var errShown = false;
+map.on('error', function (e)
+{
+  if (errShown)
+  {
+    return;
+  }
+  var msg = e && e.error && e.error.message ? e.error.message : '';
+  if (msg && msg.indexOf('tile') === -1)
+  {
+    errShown = true;
+    toast('Не удалось загрузить один из слоёв. Проверьте CONFIG.');
+  }
+} );
+
+/* панель слоёв */
+var layersSheet = document.getElementById('layersSheet');
+var infoSheet = document.getElementById('infoSheet');
+
+// Закрытие infoSheet
+function closeInfoSheet()
+{
+  infoSheet.classList.remove('open');
+  haptic();
+}
+
+document.getElementById('infoCloseBtn').addEventListener('click', closeInfoSheet);
+document.getElementById('infoGrip').addEventListener('click', closeInfoSheet);
+
+document.getElementById('layersBtn').addEventListener('click', function ()
+{
+  infoSheet.classList.remove('open');
+  layersSheet.classList.toggle('open');
+  haptic();
+} );
+map.on('movestart', function ()
+{
+  layersSheet.classList.remove('open');
+  infoSheet.classList.remove('open');
+} );
+
+var chipsBox = document.getElementById('baseChips');
+Object.keys(BASEMAPS).forEach(function (key)
+{
+  var b = document.createElement('button');
+  b.className = 'chip' + (key === currentBase ? ' on' : '');
+  b.textContent = BASEMAPS[key].name;
+  b.dataset.key = key;
+  b.addEventListener('click', function ()
+  {
+    var all = chipsBox.querySelectorAll('.chip');
+    for (var i = 0; i < all.length; i++)
+    {
+      all[i].classList.toggle('on', all[i].dataset.key === key);
+    }
+    switchBaseMap(key);
+    haptic();
+  } );
+  chipsBox.appendChild(b);
+} );
+
+var rowsBox = document.getElementById('layerRows');
+CONFIG.layers.forEach(function (l)
+{
+  var row = document.createElement('div');
+  row.className = 'lrow';
+  var cb = document.createElement('input');
+  cb.type = 'checkbox';
+  cb.checked = layerState[l.id].visible;
+  cb.addEventListener('change', function ()
+  {
+    layerState[l.id].visible = cb.checked;
+    setLayerVisibility(l, cb.checked);
+    haptic();
+  } );
+  var nm = document.createElement('div');
+  nm.className = 'nm';
+  nm.textContent = l.name;
+  var rg = document.createElement('input');
+  rg.type = 'range';
+  rg.min = 5;
+  rg.max = 90;
+  rg.value = Math.round(layerState[l.id].opacity * 100);
+  rg.addEventListener('input', function ()
+  {
+    var v = rg.value / 100;
+    layerState[l.id].opacity = v;
+    setLayerOpacity(l, v);
+  } );
+  row.appendChild(cb);
+  row.appendChild(nm);
+  row.appendChild(rg);
+  rowsBox.appendChild(row);
+} );
+
+function setLayerVisibility(l, on)
+{
+  var vis = on ? 'visible' : 'none';
+  ['-fill', '-line', '-label'].forEach(function (sfx)
+  {
+    if (map.getLayer(l.id + sfx))
+    {
+      map.setLayoutProperty(l.id + sfx, 'visibility', vis);
+    }
+  } );
+}
+function setLayerOpacity(l, v)
+{
+  if (l.type === 'ngw-raster' || l.type === 'tms')
+  {
+    if (map.getLayer(l.id + '-fill'))
+    {
+      map.setPaintProperty(l.id + '-fill', 'raster-opacity', Math.min(1, v + (l.type === 'ngw-raster' ? 0.4 : 0)));
+    }
+    return;
+  }
+  if (map.getLayer(l.id + '-fill'))
+  {
+    map.setPaintProperty(l.id + '-fill', 'fill-opacity', v);
+  }
+}
+
+/* клик по зоне */
+var NICE_KEYS =
+{
+  urban_index: 'Код зоны',
+  full_name: 'Название зоны',
+  zone_label: 'Зона',
+  zone: 'Код зоны',
+  zone_code: 'Код зоны',
+  zone_name: 'Название зоны',
+  name: 'Название',
+  source: 'Источник',
+  status: 'Статус',
+  vri: 'Разрешённое использование',
+  area: 'Площадь',
+  area_m2: 'Площадь, м²',
+  cadastral_number: 'Кадастровый номер',
+  cadastral_value: 'Кадастровая стоимость',
+  info_set_key_ref: 'Правовой акт',
+  urban_kind_obj_v: 'Вид зоны',
+  urban_kind_obj_ref: 'Категория',
+  centroid: 'Центр',
+};
+map.on('click', function (e)
+{
+  if (measureOn)
+  {
+    measurePts.push([e.lngLat.lng, e.lngLat.lat]);
+    measureUpdate();
+    haptic();
+    return;
+  }
+  if (areaOn)
+  {
+    areaPts.push([e.lngLat.lng, e.lngLat.lat]);
+    areaUpdate();
+    haptic();
+    return;
+  }
+  var ids = [];
+  CONFIG.layers.forEach(function (l)
+  {
+    if (l.type !== 'ngw-raster' && l.type !== 'tms' && map.getLayer(l.id + '-fill'))
+    {
+      ids.push(l.id + '-fill');
+    }
+  } );
+  if (!ids.length)
+  {
+    return;
+  }
+  var feats = map.queryRenderedFeatures(e.point, { layers: ids } );
+  if (!feats.length)
+  {
+    if (infoSheet.classList.contains('open'))
+    {
+      closeInfoSheet();
+    }
+    return;
+  }
+  var p = feats[0].properties || { };
+  var zone = p.urban_index || p.zone || p.zone_code || '';
+  var title = p.full_name || p.zone_name || p.name || 'Территориальная зона';
+  document.getElementById('infoTitle').textContent = title;
+  var zEl = document.getElementById('infoZone');
+  if (zone)
+  {
+    zEl.style.display = 'inline-block';
+    zEl.style.background = zoneColorJs(zone);
+    zEl.textContent = zone;
+  }
+  else
+  {
+    zEl.style.display = 'none';
+  }
+  // Координаты клика + система координат
+  var coordsEl = document.getElementById('infoCoords');
+  var lat = e.lngLat.lat.toFixed(5);
+  var lon = e.lngLat.lng.toFixed(5);
+  coordsEl.innerHTML = '📍 ' + lat + ', ' + lon + ' &nbsp;·&nbsp; WGS 84 (EPSG:4326)';
+  // Свойства
+  var box = document.getElementById('infoProps');
+  box.innerHTML = '';
+  Object.keys(p).forEach(function (k)
+  {
+    if (k === 'zone' || k === 'zone_code' || k === 'zone_name' || k === 'name' ||
+        k === 'urban_index' || k === 'full_name' || k === 'zone_label' ||
+        k === 'key' || k === 'info_set_key' || k === 'simple_geoloc_json' ||
+        k === 'aliastype' || k === 'mi_style' || k === 'geometry_name' ||
+        k === 'urban_kind_obj' || k === 'urban_status_doc' || k === 'centroid' ||
+        k.startsWith('urban10_') || k.startsWith('mi_') || k.startsWith('date_'))
+    {
+      return;
+    }
+    var val = p[k];
+    if (val === null || val === '' || typeof val === 'undefined')
+    {
+      return;
+    }
+    var row = document.createElement('div');
+    row.className = 'prow';
+    var kEl = document.createElement('div');
+    kEl.className = 'k';
+    kEl.textContent = NICE_KEYS[k] || k;
+    var vEl = document.createElement('div');
+    vEl.className = 'v';
+    vEl.textContent = String(val);
+    row.appendChild(kEl);
+    row.appendChild(vEl);
+    box.appendChild(row);
+  } );
+  layersSheet.classList.remove('open');
+  infoSheet.classList.add('open');
+  haptic();
+} );
+
+/* поиск */
+var searchEl = document.getElementById('search');
+var resultsEl = document.getElementById('results');
+var searchTimer = null;
+var searchMarker = null;
+searchEl.addEventListener('input', function ()
+{
+  clearTimeout(searchTimer);
+  var q = searchEl.value.trim();
+  if (q.length < 3)
+  {
+    resultsEl.style.display = 'none';
+    return;
+  }
+  searchTimer = setTimeout(function ()
+  {
+    doSearch(q);
+  }, 450);
+} );
+function doSearch(q)
+{
+  var url = 'https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=ru&accept-language=ru&q=' + encodeURIComponent(q + ' Красноярский край');
+  fetch(url).then(function (r)
+  {
+    return r.json();
+  } ).then(function (list)
+  {
+    resultsEl.innerHTML = '';
+    if (!list.length)
+    {
+      resultsEl.style.display = 'none';
+      return;
+    }
+    list.forEach(function (it)
+    {
+      var d = document.createElement('div');
+      d.className = 'item';
+      d.textContent = it.display_name;
+      d.addEventListener('click', function ()
+      {
+        resultsEl.style.display = 'none';
+        searchEl.blur();
+        var lon = parseFloat(it.lon);
+        var lat = parseFloat(it.lat);
+        map.flyTo( { center: [lon, lat], zoom: 13.5, duration: 1200 } );
+        if (searchMarker)
+        {
+          searchMarker.remove();
+        }
+        searchMarker = new maplibregl.Marker( { color: '#2481cc' } ).setLngLat([lon, lat]).addTo(map);
+        haptic();
+      } );
+      resultsEl.appendChild(d);
+    } );
+    resultsEl.style.display = 'block';
+  } ).catch(function ()
+  {
+    toast('Поиск временно недоступен');
+  } );
+}
+
+/* кнопки карты */
+document.getElementById('zin').addEventListener('click', function ()
+{
+  map.zoomIn();
+} );
+document.getElementById('zout').addEventListener('click', function ()
+{
+  map.zoomOut();
+} );
+document.getElementById('geo').addEventListener('click', function ()
+{
+  if (!navigator.geolocation)
+  {
+    toast('Геолокация недоступна');
+    return;
+  }
+  toast('Определяем местоположение…');
+  navigator.geolocation.getCurrentPosition(function (pos)
+  {
+    var c = [pos.coords.longitude, pos.coords.latitude];
+    map.flyTo( { center: c, zoom: 14, duration: 1200 } );
+    new maplibregl.Marker( { color: '#22c55e' } ).setLngLat(c).addTo(map);
+  }, function ()
+  {
+    toast('Не удалось определить местоположение');
+  } );
+} );
+
+/* ====== линейка: измерение расстояний ====== */
+var measureOn = false;
+var measurePts = [];
+
+function havKm(a, b)
+{
+  var R = 6371;
+  var dLat = (b[1] - a[1]) * Math.PI / 180;
+  var dLon = (b[0] - a[0]) * Math.PI / 180;
+  var la1 = a[1] * Math.PI / 180;
+  var la2 = b[1] * Math.PI / 180;
+  var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(la1) * Math.cos(la2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+function measureData()
+{
+  var feats = [];
+  if (measurePts.length > 1)
+  {
+    feats.push( { type: 'Feature', properties: { }, geometry: { type: 'LineString', coordinates: measurePts } } );
+  }
+  measurePts.forEach(function (pt)
+  {
+    feats.push( { type: 'Feature', properties: { }, geometry: { type: 'Point', coordinates: pt } } );
+  } );
+  return { type: 'FeatureCollection', features: feats };
+}
+
+function measureEnsureLayers()
+{
+  if (map.getSource('measure'))
+  {
+    return;
+  }
+  map.addSource('measure', { type: 'geojson', data: measureData() } );
+  map.addLayer( {
+    id: 'measure-line',
+    type: 'line',
+    source: 'measure',
+    paint: { 'line-color': '#5b7cfa', 'line-width': 3, 'line-dasharray': [1.5, 1.5] }
+  } );
+  map.addLayer( {
+    id: 'measure-pts',
+    type: 'circle',
+    source: 'measure',
+    paint: { 'circle-radius': 5, 'circle-color': '#5b7cfa', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 }
+  } );
+}
+
+function measureUpdate()
+{
+  measureEnsureLayers();
+  map.getSource('measure').setData(measureData());
+  var chip = document.getElementById('measureChip');
+  if (!measurePts.length)
+  {
+    chip.textContent = '📏 Коснитесь карты, чтобы поставить точки';
+    return;
+  }
+  var total = 0;
+  for (var i = 1; i < measurePts.length; i++)
+  {
+    total += havKm(measurePts[i - 1], measurePts[i]);
+  }
+  var last = measurePts[measurePts.length - 1];
+  var dTxt = total >= 1 ? total.toFixed(2) + ' км' : Math.round(total * 1000) + ' м';
+  chip.textContent = '📏 ' + dTxt + '  ·  ' + last[1].toFixed(5) + ', ' + last[0].toFixed(5);
+}
+
+document.getElementById('ruler').addEventListener('click', function ()
+{
+  measureOn = !measureOn;
+  this.classList.toggle('on', measureOn);
+  var chip = document.getElementById('measureChip');
+  if (measureOn)
+  {
+    measurePts = [];
+    chip.classList.remove('hidden');
+    measureUpdate();
+    toast('Линейка включена: ставьте точки на карте');
+  }
+  else
+  {
+    chip.classList.add('hidden');
+    measurePts = [];
+    if (map.getSource('measure'))
+    {
+      map.getSource('measure').setData(measureData());
+    }
+  }
+  haptic();
+} );
+
+/* ====== отображение координат курсора ====== */
+var coordsEl = document.getElementById('coords');
+map.on('mousemove', function (e)
+{
+  if (measureOn)
+  {
+    return;
+  }
+  coordsEl.textContent = e.lngLat.lat.toFixed(5) + ', ' + e.lngLat.lng.toFixed(5);
+  coordsEl.classList.add('show');
+  coordsEl.classList.remove('hidden');
+} );
+map.on('mouseleave', function ()
+{
+  coordsEl.classList.remove('show');
+} );
+
+/* ====== измерение площади (полигон) ====== */
+var areaOn = false;
+var areaPts = [];
+
+function areaCompute(points)
+{
+  if (points.length < 3)
+  {
+    return 0;
+  }
+  var R = 6371000;
+  var n = points.length;
+  var area = 0;
+  for (var i = 0; i < n; i++)
+  {
+    var j = (i + 1) % n;
+    var x1 = points[i][0] * Math.PI / 180;
+    var y1 = points[i][1] * Math.PI / 180;
+    var x2 = points[j][0] * Math.PI / 180;
+    var y2 = points[j][1] * Math.PI / 180;
+    area += (x2 - x1) * (2 + Math.sin(y1) + Math.sin(y2));
+  }
+  area = area * R * R / 2;
+  return Math.abs(area);
+}
+
+function areaData()
+{
+  var feats = [];
+  if (areaPts.length > 2)
+  {
+    var closed = areaPts.concat([areaPts[0]]);
+    feats.push( { type: 'Feature', properties: { }, geometry: { type: 'Polygon', coordinates: [closed] } } );
+  }
+  areaPts.forEach(function (pt)
+  {
+    feats.push( { type: 'Feature', properties: { }, geometry: { type: 'Point', coordinates: pt } } );
+  } );
+  return { type: 'FeatureCollection', features: feats };
+}
+
+function areaEnsureLayers()
+{
+  if (map.getSource('area'))
+  {
+    return;
+  }
+  map.addSource('area', { type: 'geojson', data: areaData() } );
+  map.addLayer( {
+    id: 'area-fill',
+    type: 'fill',
+    source: 'area',
+    paint: { 'fill-color': '#22d3ee', 'fill-opacity': 0.25 }
+  } );
+  map.addLayer( {
+    id: 'area-line',
+    type: 'line',
+    source: 'area',
+    paint: { 'line-color': '#22d3ee', 'line-width': 2.5, 'line-dasharray': [2, 1] }
+  } );
+  map.addLayer( {
+    id: 'area-pts',
+    type: 'circle',
+    source: 'area',
+    paint: { 'circle-radius': 5, 'circle-color': '#22d3ee', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 }
+  } );
+}
+
+function areaUpdate()
+{
+  areaEnsureLayers();
+  map.getSource('area').setData(areaData());
+  var chip = document.getElementById('measureChip');
+  if (!areaPts.length)
+  {
+    chip.textContent = '▣ Ставьте точки для измерения площади';
+    return;
+  }
+  var area = areaCompute(areaPts);
+  var aTxt = area >= 1000000 ? (area / 1000000).toFixed(2) + ' км²' : Math.round(area) + ' м²';
+  var ha = (area / 10000).toFixed(1);
+  chip.textContent = '▣ ' + aTxt + ' (' + ha + ' га)';
+}
+
+document.getElementById('areaBtn').addEventListener('click', function ()
+{
+  var rulerBtn = document.getElementById('ruler');
+  if (rulerBtn.classList.contains('on'))
+  {
+    rulerBtn.classList.remove('on');
+    measureOn = false;
+    measurePts = [];
+  }
+  areaOn = !areaOn;
+  this.classList.toggle('on', areaOn);
+  var chip = document.getElementById('measureChip');
+  if (areaOn)
+  {
+    areaPts = [];
+    chip.classList.remove('hidden');
+    areaUpdate();
+    toast('Измерение площади: ставьте точки по контуру участка');
+  }
+  else
+  {
+    chip.classList.add('hidden');
+    areaPts = [];
+    if (map.getSource('area'))
+    {
+      map.getSource('area').setData(areaData());
+    }
+  }
+  haptic();
+} );
+
+/* хаптика и тосты */
+function haptic()
+{
+  if (tg && tg.HapticFeedback)
+  {
+    try
+    {
+      tg.HapticFeedback.impactOccurred('light');
+    }
+    catch (e)
+    {
+    }
+  }
+}
+var toastTimer = null;
+function toast(text)
+{
+  var t = document.getElementById('toast');
+  t.textContent = text;
+  t.style.display = 'block';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function ()
+  {
+    t.style.display = 'none';
+  }, 3000);
+}
+
+/* ====== CLIP: рисование bbox на карте ====== */
+
+var clipDrawing = false;
+var clipStart = null;
+var clipBbox = null;
+var clipCanvas = null;
+var clipCtx = null;
+var clipLayer = 'pzz_krsk';
+
+/* Слои доступные для клиппинга */
+var CLIP_LAYERS_INFO = {
+  pzz_krsk: { name: 'ПЗЗ Красноярск', price_per_km2: 200, shop_price: 5000 },
+  pzz_emel: { name: 'ПЗЗ Емельяново', price_per_km2: 200, shop_price: 3000 },
+  pzz_divn: { name: 'ПЗЗ Дивногорск', price_per_km2: 200, shop_price: 3000 },
+  pzz_sosn: { name: 'ПЗЗ Сосновоборск', price_per_km2: 200, shop_price: 3000 }
+};
+
+function haversineArea(minLon, minLat, maxLon, maxLat)
+{
+  var R = 6371.0;
+  var h = R * (maxLat - minLat) * Math.PI / 180;
+  var midLat = (minLat + maxLat) / 2 * Math.PI / 180;
+  var w = R * Math.cos(midLat) * (maxLon - minLon) * Math.PI / 180;
+  return Math.abs(h * w);
+}
+
+function calcClipPrice(area_km2, layer_id)
+{
+  var info = CLIP_LAYERS_INFO[layer_id] || CLIP_LAYERS_INFO['pzz_krsk'];
+  var raw = area_km2 * info.price_per_km2;
+  if (raw < 990) raw = 990;
+  var floor = Math.ceil(info.shop_price * 2.0);
+  if (raw < floor) raw = floor;
+  return Math.ceil(raw / 10) * 10;
+}
+
+function initClipMode()
+{
+  var mapEl = document.getElementById('map-view');
+  if (!mapEl) return;
+
+  /* canvas поверх карты */
+  clipCanvas = document.createElement('canvas');
+  clipCanvas.id = 'clip-canvas';
+  clipCanvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;z-index:10;display:none;cursor:crosshair;touch-action:none;';
+  mapEl.appendChild(clipCanvas);
+  clipCtx = clipCanvas.getContext('2d');
+
+  /* панель снизу */
+  var panel = document.createElement('div');
+  panel.id = 'clip-panel';
+  panel.style.cssText = 'display:none;position:fixed;bottom:80px;left:12px;right:12px;background:var(--card);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow);z-index:20;';
+  panel.innerHTML = '<b>✂️ Клип по области</b><br><span id="clip-info" style="font-size:13px;color:var(--muted)"></span><br><br>'
+    + '<label style="font-size:13px">Слой: <select id="clip-layer-sel" style="margin-left:4px">'
+    + Object.keys(CLIP_LAYERS_INFO).map(function(k){ return '<option value="'+k+'">'+ CLIP_LAYERS_INFO[k].name +'</option>'; }).join('')
+    + '</select></label><br><br>'
+    + '<div style="display:flex;gap:8px">'
+    + '<button id="clip-buy-btn" style="flex:1;padding:10px;background:var(--acc);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600">💳 Отправить</button>'
+    + '<button id="clip-cancel-btn" style="padding:10px 14px;border:none;border-radius:10px;background:var(--page)">&#10006;</button>'
+    + '</div>';
+  document.body.appendChild(panel);
+
+  document.getElementById('clip-layer-sel').addEventListener('change', function()
+  {
+    clipLayer = this.value;
+    updateClipInfo();
+  });
+
+  document.getElementById('clip-buy-btn').addEventListener('click', sendClipOrder);
+
+  document.getElementById('clip-cancel-btn').addEventListener('click', function()
+  {
+    closeClipMode();
+  });
+
+  /* mouse */
+  clipCanvas.addEventListener('mousedown', onClipStart);
+  clipCanvas.addEventListener('mousemove', onClipMove);
+  clipCanvas.addEventListener('mouseup', onClipEnd);
+
+  /* touch */
+  clipCanvas.addEventListener('touchstart', function(e){ e.preventDefault(); onClipStart(e.touches[0]); }, { passive: false });
+  clipCanvas.addEventListener('touchmove', function(e){ e.preventDefault(); onClipMove(e.touches[0]); }, { passive: false });
+  clipCanvas.addEventListener('touchend', function(e){ e.preventDefault(); onClipEnd(e.changedTouches[0]); }, { passive: false });
+}
+
+function pixelToLngLat(x, y)
+{
+  var rect = clipCanvas.getBoundingClientRect();
+  var px = x - rect.left;
+  var py = y - rect.top;
+  return map.unproject([px, py]);
+}
+
+function onClipStart(e)
+{
+  clipDrawing = true;
+  clipStart = { x: e.clientX, y: e.clientY };
+  clipBbox = null;
+  resizeClipCanvas();
+}
+
+function onClipMove(e)
+{
+  if (!clipDrawing || !clipStart) return;
+  resizeClipCanvas();
+  var rect = clipCanvas.getBoundingClientRect();
+  var x0 = clipStart.x - rect.left;
+  var y0 = clipStart.y - rect.top;
+  var x1 = e.clientX - rect.left;
+  var y1 = e.clientY - rect.top;
+  clipCtx.clearRect(0, 0, clipCanvas.width, clipCanvas.height);
+  clipCtx.fillStyle = 'rgba(36,129,204,0.18)';
+  clipCtx.fillRect(x0, y0, x1 - x0, y1 - y0);
+  clipCtx.strokeStyle = '#2481cc';
+  clipCtx.lineWidth = 2;
+  clipCtx.strokeRect(x0, y0, x1 - x0, y1 - y0);
+}
+
+function onClipEnd(e)
+{
+  if (!clipDrawing || !clipStart) return;
+  clipDrawing = false;
+  var ll0 = pixelToLngLat(clipStart.x, clipStart.y);
+  var ll1 = pixelToLngLat(e.clientX, e.clientY);
+  var minLon = Math.min(ll0.lng, ll1.lng);
+  var maxLon = Math.max(ll0.lng, ll1.lng);
+  var minLat = Math.min(ll0.lat, ll1.lat);
+  var maxLat = Math.max(ll0.lat, ll1.lat);
+  clipBbox = [minLon, minLat, maxLon, maxLat];
+  updateClipInfo();
+  document.getElementById('clip-panel').style.display = 'block';
+  haptic();
+}
+
+function updateClipInfo()
+{
+  if (!clipBbox) return;
+  var area = haversineArea(clipBbox[0], clipBbox[1], clipBbox[2], clipBbox[3]);
+  var price = calcClipPrice(area, clipLayer);
+  var priceStr = price.toLocaleString('ru-RU');
+  var areaStr = area.toFixed(1);
+  document.getElementById('clip-info').innerHTML =
+    'Площадь: <b>' + areaStr + ' км²</b> &nbsp;·;&nbsp; Цена: <b>' + priceStr + ' ₽</b>';
+  document.getElementById('clip-buy-btn').textContent = '💳 Отправить (' + priceStr + ' ₽)';
+}
+
+function resizeClipCanvas()
+{
+  var rect = clipCanvas.parentElement.getBoundingClientRect();
+  if (clipCanvas.width !== rect.width || clipCanvas.height !== rect.height)
+  {
+    clipCanvas.width = rect.width;
+    clipCanvas.height = rect.height;
+  }
+}
+
+function sendClipOrder()
+{
+  if (!clipBbox)
+  {
+    toast('Сначала выделите область');
+    return;
+  }
+  var area = haversineArea(clipBbox[0], clipBbox[1], clipBbox[2], clipBbox[3]);
+  var payload = JSON.stringify({
+    action: 'clip_order',
+    bbox: clipBbox,
+    layer: clipLayer,
+    area_km2: area.toFixed(2)
+  });
+  tg.sendData(payload);
+  closeClipMode();
+}
+
+function closeClipMode()
+{
+  clipDrawing = false;
+  clipStart = null;
+  clipBbox = null;
+  if (clipCanvas) { clipCanvas.style.display = 'none'; clipCtx.clearRect(0, 0, clipCanvas.width, clipCanvas.height); }
+  var panel = document.getElementById('clip-panel');
+  if (panel) panel.style.display = 'none';
+}
+
+function openClipMode()
+{
+  if (!clipCanvas) initClipMode();
+  clipCanvas.style.display = 'block';
+  resizeClipCanvas();
+  toast('Выделите область на карте (зажмите и проведите)');
+  haptic();
+}
+
+/* Кнопка клип: добавляем на таб Карта */
+(function addClipButton()
+{
+  var mapView = document.getElementById('map-view');
+  if (!mapView) return;
+  var btn = document.createElement('button');
+  btn.id = 'clip-btn';
+  btn.title = 'Клип по области';
+  btn.textContent = '\u2702\uFE0F';
+  btn.style.cssText = 'position:absolute;top:130px;right:10px;z-index:9;width:36px;height:36px;border:none;border-radius:8px;background:var(--card);box-shadow:var(--shadow);font-size:18px;cursor:pointer;display:none;';
+  btn.addEventListener('click', openClipMode);
+  mapView.appendChild(btn);
+
+  /* показываем кнопку когда активен таб Карта */
+  document.querySelectorAll('.tab').forEach(function(tab)
+  {
+    tab.addEventListener('click', function()
+    {
+      btn.style.display = tab.dataset.tab === 'map' ? 'flex' : 'none';
+    });
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+venv/
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Docker
+docker-data/
+
+# Geo data (large files)
+*.gpkg
+shop_files/*.gpkg
+webapp/data/*.geojson
+webapp/data/*.gpkg
+
+# Generated
+clip_files/*
+!clip_files/.gitkeep
+
+# Logs
+*.log

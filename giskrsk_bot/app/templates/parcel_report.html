@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+body { font-family: 'DejaVu Sans', sans-serif; font-size: 12px; color: #333; max-width: 800px; margin: 0 auto; padding: 20px; }
+h1 { color: #2c3e50; font-size: 20px; text-align: center; }
+h2 { color: #34495e; font-size: 16px; margin-top: 20px; }
+.header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #2c3e50; padding-bottom: 15px; }
+.section { margin: 15px 0; }
+table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+td, th { border: 1px solid #ddd; padding: 8px; text-align: left; }
+th { background-color: #f5f5f5; font-weight: bold; }
+.label { font-weight: bold; width: 250px; background-color: #fafafa; }
+.value { }
+.zone-badge { display: inline-block; padding: 3px 8px; border-radius: 4px; font-weight: bold; }
+.footer { margin-top: 30px; font-size: 10px; color: #999; text-align: center; border-top: 1px solid #ddd; padding-top: 15px; }
+</style>
+</head>
+<body>
+<div class="header">
+    <h1>📋 Отчёт по земельному участку</h1>
+    <p>ГИС Красноярье</p>
+</div>
+
+<div class="section">
+    <h2>📍 Данные участка</h2>
+    <table>
+        <tr><td class="label">Кадастровый номер</td><td class="value">{{ cadastral_number }}</td></tr>
+        <tr><td class="label">Зона ПЗЗ</td><td class="value">{{ zone_code }}</td></tr>
+        <tr><td class="label">Название зоны</td><td class="value">{{ zone_name }}</td></tr>
+        <tr><td class="label">ВРИ</td><td class="value">{{ vri }}</td></tr>
+        <tr><td class="label">Площадь</td><td class="value">{{ area_m2 }}</td></tr>
+        <tr><td class="label">Кадастровая стоимость</td><td class="value">{{ cadastral_value }}</td></tr>
+    </table>
+</div>
+
+<div class="section">
+    <h2>🏗️ Описание зоны {{ zone_code }}</h2>
+    <table>
+        <tr><td class="label">Основные ВРИ</td><td class="value">{{ permitted_uses }}</td></tr>
+        <tr><td class="label">Условно разрешённые</td><td class="value">{{ conditional_permitted }}</td></tr>
+        <tr><td class="label">Вспомогательные</td><td class="value">{{ auxiliary_uses }}</td></tr>
+        <tr><td class="label">Этажность</td><td class="value">{{ max_floors }}</td></tr>
+        <tr><td class="label">Макс. высота</td><td class="value">{{ max_height }}</td></tr>
+        <tr><td class="label">Мин. участок</td><td class="value">{{ min_parcel }}</td></tr>
+        <tr><td class="label">% застройки</td><td class="value">{{ max_build_percent }}</td></tr>
+    </table>
+</div>
+
+<div class="footer">
+    <p>Сформировано автоматически ботом «ГИС Красноярье»</p>
+    <p>Дата: {{ date }}</p>
+</div>
+</body>
+</html>
