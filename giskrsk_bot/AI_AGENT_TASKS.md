@@ -61,8 +61,7 @@ NextGIS Web Map: **https://zimin-maplive0000.nextgis.com/resource/127/display?pa
 | # | Проблема | Приоритет |
 |---|----------|-----------|
 | 6 | Batch-обработка синхронная (блокирует бот) | 🔴 |
-| 8 | YooKassa placeholder — оплата не работает | 🟡 |
-| 9 | NextGIS bearer_token = placeholder | 🟡 |
+| 8 | NextGIS bearer_token = placeholder | 🟡 |
 | 13 | Реальные ПЗЗ не развёрнуты в webapp/data/ | 🔴 |
 
 ---
