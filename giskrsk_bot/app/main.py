@@ -25,77 +25,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-# ── Инициализация сервисов и репозиториев ────────────────────────────────
-def init_services_and_repos() -> tuple[dict, dict]:
-    """Создать все сервисы и репозитории."""
-    from sqlalchemy.ext.asyncio import AsyncSession
-
-    async def get_session() -> AsyncSession:
-        async with async_session_factory() as session:
-            return session
-
-    # Репозитории
-    from app.repositories import (
-        UserRepo, PaymentRepo, WebhookEventRepo, SubscriptionRepo,
-        TrackedObjectRepo, ChangeEventRepo, NotificationRepo,
-        BatchJobRepo, BatchItemRepo, LayerSyncRepo,
-    )
-
-    # Интеграции
-    from app.integrations import (
-        GeoServiceClient, NextGISClient, RedisCache, TelegramClient, YooKassaClient,
-    )
-
-    # Сервисы
-    from app.services import (
-        ParcelService, PaymentService, WebhookProcessor,
-        SubscriptionService, BatchService, NotificationService,
-        MonitorService, PdfService,
-    )
-
-    # Создаём клиенты
-    nextgis = NextGISClient()
-    geoservice = GeoServiceClient()
-    yookassa = YooKassaClient()
-    redis = RedisCache()
-    # NOTE: TelegramClient создаётся позже в lifespan с реальным bot
-
-    # Репозитории (будет использоваться с session)
-    # NOTE: репозитории создаются в каждом хендлере из data['repos']
-    # Здесь мы создаём фабрику для инъекции
-    repo_factories = {
-        "user": lambda s: UserRepo(s),
-        "payment": lambda s: PaymentRepo(s),
-        "webhook_event": lambda s: WebhookEventRepo(s),
-        "subscription": lambda s: SubscriptionRepo(s),
-        "tracked_object": lambda s: TrackedObjectRepo(s),
-        "change_event": lambda s: ChangeEventRepo(s),
-        "notification": lambda s: NotificationRepo(s),
-        "batch_job": lambda s: BatchJobRepo(s),
-        "batch_item": lambda s: BatchItemRepo(s),
-        "layer_sync": lambda s: LayerSyncRepo(s),
-    }
-
-    # Сервисы (верхний уровень — используют репозитории через сессию)
-    # Создаём сессию для сервисов, которые работают по запросу
-    async def repos() -> dict:
-        session = await get_session()
-        return {name: factory(session) for name, factory in repo_factories.items()}
-
-    # Сервисы (разделяем экземпляры)
-    # NOTE: в реальной работе сервисы получают репозитории при вызове
-    # Здесь — упрощённая инициализация для FastAPI lifespan
-    services_dict: dict = {}
-    repos_dict: dict = {}
-
-    # Сохраняем клиенты интеграций для сервисов
-    services_dict["nextgis"] = nextgis
-    services_dict["yookassa"] = yookassa
-    services_dict["redis"] = redis
-
-    return services_dict, repos_dict
-
-
 # ── Lifespan ──────────────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -117,6 +46,7 @@ async def lifespan(app: FastAPI):
         SubscriptionService, BatchService, NotificationService,
         MonitorService, PdfService, AiService, AccountManager,
     )
+    from app.services.ai_orchestrator import AiOrchestrator
 
     nextgis = NextGISClient()
     geoservice = GeoServiceClient()
@@ -178,6 +108,9 @@ async def lifespan(app: FastAPI):
     pdf_service = PdfService()
     account_manager = AccountManager(nextgis)
 
+    # AI Copilot Orchestrator — использует DeepSeek + инструменты
+    ai_orchestrator = AiOrchestrator(nextgis=nextgis, geoservice=geoservice)
+
     # Собираем сервисы
     services = {
         "parcel": parcel_service,
@@ -195,6 +128,7 @@ async def lifespan(app: FastAPI):
         "telegram": telegram,
         "account_manager": account_manager,
         "ai": AiService(),
+        "ai_orchestrator": ai_orchestrator,
     }
 
     # Репозитории

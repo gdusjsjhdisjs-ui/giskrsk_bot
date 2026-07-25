@@ -313,3 +313,98 @@ class AiOrchestrator:
         except Exception as e:
             logger.error("DeepSeek explanation error: %s", e)
             return "AI-ассистент временно недоступен. Попробуйте позже."
+
+    # ── MapCommand Whitelist (Технология №3: фильтрация обычным языком) ──
+
+    MAP_COMMANDS_WHITELIST = {
+        "show_layer": "Показать слой на карте",
+        "hide_layer": "Скрыть слой на карте",
+        "filter_layer": "Фильтр объектов слоя по условию",
+        "clear_filter": "Очистить фильтр слоя",
+        "fit_to_results": "Приблизить к результатам",
+        "set_center": "Центрировать карту",
+        "set_zoom": "Установить масштаб",
+        "open_feature": "Открыть карточку объекта",
+        "draw_buffer": "Нарисовать буферную зону",
+    }
+
+    ALLOWED_FILTER_OPS = {"equals", "starts_with", "contains", "gt", "lt", "in"}
+
+    async def parse_map_command(self, user_input: str) -> dict | None:
+        """Преобразовать текст пользователя в MapCommand.
+
+        Возвращает {"command": "...", "params": {...}} или None.
+        """
+        if not settings.DEEPSEEK_API_KEY:
+            return None
+
+        try:
+            from openai import AsyncOpenAI
+
+            client = AsyncOpenAI(
+                api_key=settings.DEEPSEEK_API_KEY,
+                base_url="https://api.deepseek.com/v1",
+            )
+
+            commands_desc = "\n".join(
+                f"- {k}: {v}" for k, v in self.MAP_COMMANDS_WHITELIST.items()
+            )
+
+            system_prompt = f"""Ты — Map Command Parser для GIS-карты.
+Преобразуй запрос пользователя в команду карты.
+
+Доступные команды:
+{commands_desc}
+
+Параметры команд:
+- show_layer: {{"layer_id": "..."}}
+- hide_layer: {{"layer_id": "..."}}
+- filter_layer: {{"layer_id": "...", "conditions": [{{"property": "...", "operator": "starts_with|equals|contains", "value": "..."}}]}}
+- clear_filter: {{"layer_id": "..."}}
+- fit_to_results: {{}}
+- set_center: {{"lat": float, "lon": float}}
+- set_zoom: {{"zoom": int (1-19)}}
+- open_feature: {{"feature_id": "..."}}
+- draw_buffer: {{"lat": float, "lon": float, "meters": int}}
+
+Ответь ТОЛЬКО JSON без пояснений.
+Если команда не распознана — {{"command": null, "reason": "..."}}."""
+
+            resp = await client.chat.completions.create(
+                model=settings.DEEPSEEK_MODEL or "deepseek-chat",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_input},
+                ],
+                temperature=0.1,
+                response_format={"type": "json_object"},
+            )
+
+            result = json.loads(resp.choices[0].message.content)
+            cmd = result.get("command")
+            if cmd and cmd not in self.MAP_COMMANDS_WHITELIST:
+                return {"command": None, "reason": f"Команда {cmd} не разрешена"}
+            return result
+
+        except Exception as e:
+            logger.error("MapCommand parse error: %s", e)
+            return None
+
+
+# ── Утилиты для AI-ответов ────────────────────────────────────
+def make_short_report(facts: list, risks: list, missing: list) -> str:
+    """Сформировать короткий текстовый отчёт из Evidence Pack."""
+    parts = []
+    if facts:
+        parts.append("📊 Факты:")
+        for f in facts:
+            parts.append(f"• {f['label']}: {f['value']} ({f['source']})")
+    if risks:
+        parts.append("\n⚠️ Ограничения:")
+        for r in risks:
+            parts.append(f"• {r}")
+    if missing:
+        parts.append("\n❓ Неизвестно:")
+        for m in missing:
+            parts.append(f"• {m}")
+    return "\n".join(parts)

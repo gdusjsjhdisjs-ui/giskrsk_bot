@@ -1957,6 +1957,13 @@ map.on('click', function (e)
   } );
   layersSheet.classList.remove('open');
   infoSheet.classList.add('open');
+
+  // Сохраняем для AI-объяснения
+  _lastFeature = feats[0];
+  _lastFeatureCoords = [e.lngLat.lng, e.lngLat.lat];
+  var aiEl = document.getElementById('aiExplainBlock');
+  if (aiEl) aiEl.style.display = 'block';
+
   haptic();
 } );
 
@@ -2279,19 +2286,6 @@ document.getElementById('areaBtn').addEventListener('click', function ()
 /* ---------- Кнопки рисования и экспорта ---------- */
 document.getElementById('drawBtn').addEventListener('click', toggleDraw);
 document.getElementById('exportBtn').addEventListener('click', exportGeoJSON);
-
-/* ---------- Сохраняем последний клик для AI объяснения ---------- */
-map.on('click', function(e)
-{
-  var feats = map.queryRenderedFeatures(e.point);
-  if (feats && feats.length)
-  {
-    _lastFeature = feats[0];
-    _lastFeatureCoords = [e.lngLat.lng, e.lngLat.lat];
-    var el = document.getElementById('aiExplainBlock');
-    if (el) el.style.display = 'block';
-  }
-});
 
 /* хаптика и тосты */
 function haptic()

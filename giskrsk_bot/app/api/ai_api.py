@@ -25,8 +25,12 @@ router = APIRouter(prefix="/api/ai", tags=["ai"])
 
 
 def _get_orchestrator(request: Request) -> AiOrchestrator:
-    """Получить или создать Orchestrator."""
+    """Получить Orchestrator из app.state (уже инициализирован в lifespan)."""
     services = getattr(request.app.state, "services", {})
+    orchestrator = services.get("ai_orchestrator")
+    if orchestrator:
+        return orchestrator
+    # Fallback — создаём новый (если lifespan не отработал)
     return AiOrchestrator(
         nextgis=services.get("nextgis"),
         geoservice=services.get("geoservice"),
@@ -137,5 +141,27 @@ async def ai_analyze_area(request: Request) -> dict:
 
     orchestrator = _get_orchestrator(request)
     result = await orchestrator.process_query(user_message, context)
+
+    return result
+
+
+@router.post("/map-command")
+async def ai_map_command(request: Request) -> dict:
+    """Преобразовать текст пользователя в команду карты (Технология №3).
+
+    Body: {"message": "Покажи только жилые зоны"}
+    Returns: {"command": "filter_layer", "params": {...}} или {"command": null}
+    """
+    body = await request.json()
+    message = body.get("message", "").strip()
+
+    if not message:
+        raise HTTPException(status_code=400, detail="Message is required")
+
+    orchestrator = _get_orchestrator(request)
+    result = await orchestrator.parse_map_command(message)
+
+    if result is None:
+        return {"command": None, "reason": "AI-ассистент недоступен"}
 
     return result
