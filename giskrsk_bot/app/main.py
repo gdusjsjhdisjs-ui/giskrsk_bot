@@ -12,7 +12,7 @@ from aiogram.webhook.aiohttp_server import SimpleRequestHandler
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import health_router, webhooks_router, admin_router
+from app.api import health_router, webhooks_router, admin_router, ai_router
 from app.bot.setup import create_bot, create_dispatcher
 from app.core.config import settings
 from app.db.session import async_session_factory
@@ -58,7 +58,7 @@ def init_services_and_repos() -> tuple[dict, dict]:
     geoservice = GeoServiceClient()
     yookassa = YooKassaClient()
     redis = RedisCache()
-    telegram_client = TelegramClient()
+    # NOTE: TelegramClient создаётся позже в lifespan с реальным bot
 
     # Репозитории (будет использоваться с session)
     # NOTE: репозитории создаются в каждом хендлере из data['repos']
@@ -311,6 +311,7 @@ app.add_middleware(
 app.include_router(health_router)
 app.include_router(webhooks_router)
 app.include_router(admin_router)
+app.include_router(ai_router)
 
 
 # ── Webhook endpoint для Telegram ────────────────────────────────────────
