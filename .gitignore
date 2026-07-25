@@ -12,6 +12,9 @@ venv/
 .env.*
 !.env.example
 
+# Secrets (personal, outside git)
+.secrets/
+
 # IDE
 .vscode/
 .idea/
